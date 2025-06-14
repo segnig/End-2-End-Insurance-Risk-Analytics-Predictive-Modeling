@@ -1,0 +1,24 @@
+# Data manipulation & visualization
+pandas
+numpy
+matplotlib
+seaborn
+
+# Project planning & collaboration
+jupyter
+notebook
+ipython
+
+# Version control
+gitpython
+dvc
+
+# Statistical modeling & hypothesis testing
+scipy
+statsmodels
+
+# A/B testing
+scikit-learn
+
+# reporting & documentation
+jupyterlab
