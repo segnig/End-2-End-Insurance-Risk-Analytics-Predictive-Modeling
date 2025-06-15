@@ -1,5 +1,0 @@
-[core]
-    remote = mygdrive
-['remote "mygdrive"']
-    url = gdrive://1DM0dkVIHtp4O2Y5B9--3zbCNLSktUoXC
-    gdrive_use_service_account = true
