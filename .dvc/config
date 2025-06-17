@@ -2,4 +2,5 @@
     remote = gdrive_remote
 ['remote "gdrive_remote"']
     url = gdrive://1DM0dkVIHtp4O2Y5B9--3zbCNLSktUoXC
-    gdrive_service_account_json_file_path = C:\Users\segni\Downloads\academy-462923-660355e1d1ea.json
+    gdrive_use_service_account = true
+    gdrive_service_account_json_file_path = C:\Users\segni\Documents\GitHub\End-2-End-Insurance-Risk-Analytics-Predictive-Modeling\dvc-auth.json

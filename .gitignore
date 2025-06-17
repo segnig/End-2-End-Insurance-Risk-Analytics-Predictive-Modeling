@@ -4,3 +4,5 @@ data/*.csv
 
 # Ignore Python virtual environment
 .venv/
+
+dvc-auth.json
