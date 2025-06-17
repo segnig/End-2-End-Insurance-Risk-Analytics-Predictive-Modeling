@@ -180,7 +180,7 @@ vehicle_results = analyzer._test_vehicle_type_risk()
 
 | Version | Date       | Changes                     |
 |---------|------------|-----------------------------|
-| 1.0     | 2023-11-15 | Initial release             |
-| 1.1     | 2023-12-01 | Added sampling methods      |
+| 1.0     | 2025-11-15 | Initial release             |
+
 
 This documentation follows standard technical documentation practices with clear section organization, method specifications, and practical usage examples while avoiding unnecessary marketing language.
