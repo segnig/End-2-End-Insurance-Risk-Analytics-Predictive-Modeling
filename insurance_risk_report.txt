@@ -1,0 +1,31 @@
+Insurance Risk Analysis Report
+==================================================
+Analysis Date: 2025-06-17T06:12:30.710870
+Policies Analyzed: 11,000
+Time Period: 2014-08-01T00:00:00 to 2015-08-01T00:00:00
+Overall Claim Rate: 0.5%
+
+Key Findings:
+
+1. Geographic Risk Variations:
+   - By Province:
+      • Claim Frequency: SIGNIFICANT differences (p=0.0000)
+      • Claim Severity: SIGNIFICANT differences (p=0.0001)
+   - By Zip Code (Highest vs. Lowest Risk):
+      • Claim Frequency: No significant differences (p=0.9519)
+      • Claim Severity: No significant differences (p=nan)
+      • Highest Risk Zip Codes: 1126, 4171, 400, 621, 2735...
+
+2. Demographic Risk Variations:
+   - By Gender:
+      • Claim Frequency: No significant differences (p=1.0000)
+      • Claim Severity: No significant differences (p=nan)
+
+3. Product Risk Variations:
+   - By Vehicle Type:
+      • Claim Frequency: No significant differences (p=0.1864)
+      • Claim Severity: No significant differences (p=0.6593)
+
+Recommendations:
+- Implement province-specific premium adjustments
+- Maintain gender-neutral rating approach
