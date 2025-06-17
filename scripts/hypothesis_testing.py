@@ -1,14 +1,13 @@
 import pandas as pd
 import numpy as np
 from scipy.stats import chi2_contingency, ttest_ind, f_oneway
-from typing import Dict, Union, List
+from typing import Dict, Union, List, Tuple
 from datetime import datetime
 import warnings
 
 class InsuranceRiskAnalyzer:
     """
-    A comprehensive insurance risk analysis tool that performs hypothesis testing
-    on key risk indicators across different dimensions (geography, demographics, etc.).
+    Enhanced insurance risk analyzer with robust handling of sample size requirements.
     """
     
     def __init__(self, file_path: str = "../data/data.csv", date_col: str = "TransactionMonth"):
@@ -16,21 +15,11 @@ class InsuranceRiskAnalyzer:
         self.date_col = date_col
         self.df = self._load_and_preprocess_data()
         
-        # Configuration defaults
-        self.sampling_defaults = {
-            'random': {'sample_frac': 0.1},
-            'stratified': {'stratify_col': 'Province', 'sample_frac': 0.1},
-            'systematic': {'step': 100},
-            'cluster': {'cluster_col': 'PostalCode', 'n_clusters': 20}
-        }
+        # Configuration
+        self.alpha = 0.05  # Significance level
+        self.min_sample_size = 30  # Minimum samples per group
+        self.min_policies_for_test = 10  # Minimum to attempt test (with warning)
         
-        # Test configuration
-        self.test_config = {
-            'min_policies_per_group': 30,
-            'top_n_zip_codes': 5,
-            'recent_months_default': 12
-        }
-
     def _load_and_preprocess_data(self) -> pd.DataFrame:
         """Load and preprocess the insurance data."""
         try:
@@ -39,488 +28,383 @@ class InsuranceRiskAnalyzer:
             if self.date_col in df.columns:
                 df[self.date_col] = pd.to_datetime(df[self.date_col])
             
-            self._calculate_derived_metrics(df)
-            self._clean_categorical_variables(df)
+            # Calculate required metrics
+            df['has_claim'] = df['TotalClaims'] > 0
+            df['margin'] = df['TotalPremium'] - df['TotalClaims']
+            df['claim_frequency'] = df['has_claim'].astype(int)
+            
+            # Clean categoricals
+            for col in ['Province', 'PostalCode', 'Gender', 'VehicleType']:
+                if col in df.columns:
+                    if col == 'Gender':
+                        df[col] = df[col].str.strip().str.title()
+                    df[col] = df[col].astype('category')
             
             return df.dropna(subset=['TotalPremium', 'TotalClaims'])
         except Exception as e:
             warnings.warn(f"Error loading data: {str(e)}")
             return pd.DataFrame()
 
-    def _calculate_derived_metrics(self, df: pd.DataFrame) -> None:
-        """Calculate derived risk metrics."""
-        if 'TotalPremium' in df.columns and 'TotalClaims' in df.columns:
-            df['has_claim'] = df['TotalClaims'] > 0
-            df['margin'] = df['TotalPremium'] - df['TotalClaims']
-            df['loss_ratio'] = np.where(
-                df['TotalPremium'] > 0,
-                df['TotalClaims'] / df['TotalPremium'],
-                np.nan
-            )
-            df['claim_frequency'] = df['has_claim'].astype(int)
-
-    def _clean_categorical_variables(self, df: pd.DataFrame) -> None:
-        """Clean and standardize categorical variables."""
-        cat_cols = ['Province', 'PostalCode', 'Gender', 'VehicleType', 'CoverType']
-        for col in cat_cols:
-            if col in df.columns:
-                if col == 'Gender':
-                    df[col] = df[col].str.strip().str.title()
-                df[col] = df[col].astype('category').cat.as_ordered()
-
-    def get_sample(self, method: str = 'auto', **kwargs) -> pd.DataFrame:
-        """Get a sample of the data using the specified method."""
-        if method == 'auto':
-            method = self._recommend_sampling_method()
+    def _check_group_balance(self, group_a: pd.DataFrame, group_b: pd.DataFrame, 
+                           balance_cols: List[str]) -> bool:
+        """
+        Check if control and test groups are balanced on specified columns.
+        Returns True if groups are balanced (no significant differences).
+        """
+        for col in balance_cols:
+            if col not in group_a.columns or col not in group_b.columns:
+                continue
+                
+            if pd.api.types.is_numeric_dtype(group_a[col]):
+                # Use t-test for numeric
+                _, p = ttest_ind(group_a[col].dropna(), group_b[col].dropna())
+            else:
+                # Use chi2 for categorical
+                contingency = pd.crosstab(
+                    pd.concat([group_a[col], group_b[col]]),
+                    np.concatenate([
+                        np.zeros(len(group_a)),
+                        np.ones(len(group_b))
+                    ])
+                )
+                if contingency.size > 1:
+                    _, p, _, _ = chi2_contingency(contingency)
+                else:
+                    p = 1
             
-        sampler = {
-            'random': self._random_sample,
-            'stratified': self._stratified_sample,
-            'systematic': self._systematic_sample,
-            'cluster': self._cluster_sample
-        }.get(method.lower())
+            if p < self.alpha:
+                warnings.warn(f"Groups are not balanced on {col} (p={p:.4f})")
+                return False
+        return True
+
+    def run_ab_test(self, feature_col: str, group_a_value, group_b_value=None,
+                   balance_cols: List[str] = None) -> Dict:
+        """
+        Perform A/B test comparing two groups on risk metrics.
+        If group_b_value is None, compares group_a_value against all others.
+        """
+        if feature_col not in self.df.columns:
+            return {'error': f"Feature column {feature_col} not found"}
+            
+        # Create groups
+        group_a = self.df[self.df[feature_col] == group_a_value]
         
-        if not sampler:
-            raise ValueError(f"Unknown sampling method: {method}")
-            
-        return sampler(**kwargs)
-
-    def _recommend_sampling_method(self) -> str:
-        """Recommend the most appropriate sampling method."""
-        if len(self.df) < 10000:
-            return 'none'
-        if 'PostalCode' in self.df.columns and len(self.df['PostalCode'].unique()) >= 20:
-            return 'cluster'
-        if 'Province' in self.df.columns and 2 <= len(self.df['Province'].unique()) <= 20:
-            return 'stratified'
-        if len(self.df) > 1000000:
-            return 'systematic'
-        return 'random'
-
-    def _random_sample(self, sample_size: int = None, sample_frac: float = None, 
-                      random_state: int = None) -> pd.DataFrame:
-        """Simple random sampling."""
-        params = self.sampling_defaults['random'].copy()
-        if sample_size is not None or sample_frac is not None:
-            params.update({'sample_size': sample_size, 'sample_frac': sample_frac})
-        return self.df.sample(**params, random_state=random_state)
-
-    def _stratified_sample(self, stratify_col: str = None, sample_size: int = None,
-                          sample_frac: float = None, random_state: int = None) -> pd.DataFrame:
-        """Stratified sampling by a specific column."""
-        params = self.sampling_defaults['stratified'].copy()
-        if stratify_col is not None:
-            params['stratify_col'] = stratify_col
-        if sample_size is not None or sample_frac is not None:
-            params.update({'sample_size': sample_size, 'sample_frac': sample_frac})
-            
-        if params['stratify_col'] not in self.df.columns:
-            raise ValueError(f"Stratification column {params['stratify_col']} not found")
-            
-        return self.df.groupby(params['stratify_col'], group_keys=False, observed=True).apply(
-            lambda x: x.sample(frac=params['sample_frac'], random_state=random_state))
-
-    def _systematic_sample(self, step: int = None, random_start: bool = True) -> pd.DataFrame:
-        """Systematic sampling with fixed step interval."""
-        params = self.sampling_defaults['systematic'].copy()
-        if step is not None:
-            params['step'] = step
-            
-        if random_start:
-            start = np.random.randint(0, params['step'])
+        if group_b_value is None:
+            group_b = self.df[self.df[feature_col] != group_a_value]
+            comparison = f"{group_a_value} vs Others"
         else:
-            start = 0
-        indices = range(start, len(self.df), params['step'])
-        return self.df.iloc[indices]
-
-    def _cluster_sample(self, cluster_col: str = None, n_clusters: int = None,
-                       random_state: int = None) -> pd.DataFrame:
-        """Cluster sampling by selecting entire clusters."""
-        params = self.sampling_defaults['cluster'].copy()
-        if cluster_col is not None:
-            params['cluster_col'] = cluster_col
-        if n_clusters is not None:
-            params['n_clusters'] = n_clusters
-            
-        if params['cluster_col'] not in self.df.columns:
-            raise ValueError(f"Cluster column {params['cluster_col']} not found")
-            
-        clusters = self.df[params['cluster_col']].unique()
-        selected = np.random.RandomState(random_state).choice(
-            clusters, size=min(params['n_clusters'], len(clusters)), replace=False)
-        return self.df[self.df[params['cluster_col']].isin(selected)]
-
-    def run_risk_analysis(self, sampling_method: str = None, recent_months: int = None) -> Dict:
-        """Run complete risk analysis with optional sampling and time filtering."""
-        original_df = self.df
+            group_b = self.df[self.df[feature_col] == group_b_value]
+            comparison = f"{group_a_value} vs {group_b_value}"
         
-        try:
-            if recent_months is not None:
-                self.df = self._filter_recent_data(recent_months)
-                
-            if sampling_method is not None and sampling_method.lower() != 'none':
-                self.df = self.get_sample(method=sampling_method)
-                
-            results = {
-                'geographic_risk': self._test_geographic_risk(),
-                'demographic_risk': self._test_demographic_risk(),
-                'product_risk': self._test_product_risk(),
-                'metadata': self._get_metadata()
+        # Check sample sizes
+        sample_sizes = {'group_a': len(group_a), 'group_b': len(group_b)}
+        if len(group_a) < self.min_policies_for_test or len(group_b) < self.min_policies_for_test:
+            return {
+                'error': f"Insufficient samples ({len(group_a)} vs {len(group_b)})",
+                'comparison': comparison,
+                'sample_sizes': sample_sizes
             }
-            
-            return results
-            
-        finally:
-            self.df = original_df
-
-    def _test_geographic_risk(self) -> Dict:
-        """Test risk differences across geographic dimensions."""
-        return {
-            'by_province': self._test_province_risk(),
-            'by_zip_code': self._test_zip_code_risk()
+        elif len(group_a) < self.min_sample_size or len(group_b) < self.min_sample_size:
+            warnings.warn(f"Small sample sizes ({len(group_a)} vs {len(group_b)}) - results may be unreliable")
+        
+        # Check group balance if specified
+        is_balanced = True
+        if balance_cols:
+            is_balanced = self._check_group_balance(group_a, group_b, balance_cols)
+        
+        # Perform tests
+        results = {
+            'feature': feature_col,
+            'comparison': comparison,
+            'sample_sizes': sample_sizes,
+            'is_balanced': is_balanced,
+            'tests': {}
         }
+        
+        # Claim Frequency (Chi-square)
+        freq_contingency = pd.crosstab(
+            pd.concat([group_a['has_claim'], group_b['has_claim']]),
+            np.concatenate([np.zeros(len(group_a)), np.ones(len(group_b))])
+        )
+        if freq_contingency.size > 1:
+            chi2, p_freq, _, _ = chi2_contingency(freq_contingency)
+            results['tests']['claim_frequency'] = {
+                'test': 'chi2',
+                'statistic': chi2,
+                'p_value': p_freq,
+                'group_a_rate': group_a['has_claim'].mean(),
+                'group_b_rate': group_b['has_claim'].mean(),
+                'reject_null': p_freq < self.alpha
+            }
+        
+        # Claim Severity (t-test) - only for policies with claims
+        severity_a = group_a[group_a['has_claim']]['TotalClaims']
+        severity_b = group_b[group_b['has_claim']]['TotalClaims']
+        if len(severity_a) >= 2 and len(severity_b) >= 2:
+            t_stat, p_sev = ttest_ind(severity_a, severity_b, equal_var=False)
+            results['tests']['claim_severity'] = {
+                'test': 't-test',
+                'statistic': t_stat,
+                'p_value': p_sev,
+                'group_a_mean': severity_a.mean(),
+                'group_b_mean': severity_b.mean(),
+                'reject_null': p_sev < self.alpha
+            }
+        
+        # Margin (t-test)
+        if len(group_a) >= 2 and len(group_b) >= 2:
+            t_stat, p_margin = ttest_ind(group_a['margin'], group_b['margin'], equal_var=False)
+            results['tests']['margin'] = {
+                'test': 't-test',
+                'statistic': t_stat,
+                'p_value': p_margin,
+                'group_a_mean': group_a['margin'].mean(),
+                'group_b_mean': group_b['margin'].mean(),
+                'reject_null': p_margin < self.alpha
+            }
+        
+        return results
 
-    def _test_demographic_risk(self) -> Dict:
-        """Test risk differences across demographic dimensions."""
-        return {
-            'by_gender': self._test_gender_risk()
-        }
-
-    def _test_product_risk(self) -> Dict:
-        """Test risk differences across product dimensions."""
-        return {
-            'by_vehicle_type': self._test_vehicle_type_risk()
-        }
-
-    def _test_province_risk(self) -> Dict[str, float]:
+    def test_province_risk(self) -> Dict:
         """Test risk differences across provinces."""
         if 'Province' not in self.df.columns:
             return {'error': 'Province data not available'}
             
-        freq_table = pd.crosstab(self.df['Province'], self.df['has_claim'])
-        freq_result = self._run_chi2_test(freq_table) if freq_table.size > 1 else {'p_value': np.nan}
-        severity_result = self._run_anova_test('Province', 'TotalClaims')
+        provinces = self.df['Province'].unique()
+        if len(provinces) < 2:
+            return {'error': 'Insufficient provinces for comparison'}
+            
+        # Compare each province to all others
+        results = {}
+        for province in provinces:
+            province_test = self.run_ab_test(
+                feature_col='Province',
+                group_a_value=province,
+                balance_cols=['Gender', 'VehicleType']
+            )
+            if 'error' not in province_test:
+                results[province] = province_test
+            elif province_test['sample_sizes']['group_a'] >= self.min_policies_for_test:
+                # Include provinces that had some data but not enough for full test
+                results[province] = province_test
         
-        return {
-            'claim_frequency': freq_result,
-            'claim_severity': severity_result
-        }
+        return results if results else {'error': 'No provinces met minimum sample requirements'}
 
-    def _test_zip_code_risk(self) -> Dict[str, float]:
-        """Test risk differences between highest and lowest risk zip codes."""
+    def test_zip_code_risk(self, top_n: int = 5) -> Dict:
+        """Test risk differences between highest/lowest risk zip codes."""
         if 'PostalCode' not in self.df.columns:
             return {'error': 'PostalCode data not available'}
             
-        min_policies = self.test_config['min_policies_per_group']
-        top_n = self.test_config['top_n_zip_codes']
-        
+        # Identify high/low risk zip codes with sufficient policies
         zip_stats = self.df.groupby('PostalCode', observed=True).agg(
             claim_rate=('has_claim', 'mean'),
             policy_count=('PolicyID', 'count')
-        ).query(f'policy_count >= {min_policies}')
+        ).query(f'policy_count >= {self.min_policies_for_test}')
         
         if len(zip_stats) < 2:
-            return {'error': 'Insufficient zip code data for comparison'}
+            return {'error': 'Insufficient zip codes for comparison'}
             
         high_risk = zip_stats.nlargest(top_n, 'claim_rate').index
         low_risk = zip_stats.nsmallest(top_n, 'claim_rate').index
         
-        freq_result = self._run_ttest(
-            self.df['PostalCode'].isin(high_risk),
-            self.df['PostalCode'].isin(low_risk),
-            self.df['has_claim']
-        )
+        # Compare high vs low risk groups
+        high_risk_df = self.df[self.df['PostalCode'].isin(high_risk)]
+        low_risk_df = self.df[self.df['PostalCode'].isin(low_risk)]
         
-        claim_df = self.df[self.df['has_claim']]
-        severity_result = self._run_ttest(
-            claim_df['PostalCode'].isin(high_risk),
-            claim_df['PostalCode'].isin(low_risk),
-            claim_df['TotalClaims']
-        )
+        # Check balance
+        is_balanced = self._check_group_balance(high_risk_df, low_risk_df, ['Gender', 'VehicleType'])
         
-        return {
-            'claim_frequency': freq_result,
-            'claim_severity': severity_result,
+        # Run tests
+        results = {
             'high_risk_zips': list(high_risk),
-            'low_risk_zips': list(low_risk)
+            'low_risk_zips': list(low_risk),
+            'sample_sizes': {
+                'high_risk': len(high_risk_df),
+                'low_risk': len(low_risk_df)
+            },
+            'is_balanced': is_balanced,
+            'tests': {}
         }
+        
+        # Claim Frequency
+        freq_contingency = pd.crosstab(
+            pd.concat([high_risk_df['has_claim'], low_risk_df['has_claim']]),
+            np.concatenate([np.zeros(len(high_risk_df)), np.ones(len(low_risk_df))])
+        )
+        if freq_contingency.size > 1:
+            chi2, p_freq, _, _ = chi2_contingency(freq_contingency)
+            results['tests']['claim_frequency'] = {
+                'test': 'chi2',
+                'statistic': chi2,
+                'p_value': p_freq,
+                'high_risk_rate': high_risk_df['has_claim'].mean(),
+                'low_risk_rate': low_risk_df['has_claim'].mean(),
+                'reject_null': p_freq < self.alpha
+            }
+        
+        # Claim Severity
+        severity_high = high_risk_df[high_risk_df['has_claim']]['TotalClaims']
+        severity_low = low_risk_df[low_risk_df['has_claim']]['TotalClaims']
+        if len(severity_high) >= 2 and len(severity_low) >= 2:
+            t_stat, p_sev = ttest_ind(severity_high, severity_low, equal_var=False)
+            results['tests']['claim_severity'] = {
+                'test': 't-test',
+                'statistic': t_stat,
+                'p_value': p_sev,
+                'high_risk_mean': severity_high.mean(),
+                'low_risk_mean': severity_low.mean(),
+                'reject_null': p_sev < self.alpha
+            }
+        
+        # Margin
+        if len(high_risk_df) >= 2 and len(low_risk_df) >= 2:
+            t_stat, p_margin = ttest_ind(high_risk_df['margin'], low_risk_df['margin'], equal_var=False)
+            results['tests']['margin'] = {
+                'test': 't-test',
+                'statistic': t_stat,
+                'p_value': p_margin,
+                'high_risk_mean': high_risk_df['margin'].mean(),
+                'low_risk_mean': low_risk_df['margin'].mean(),
+                'reject_null': p_margin < self.alpha
+            }
+        
+        return results
 
-    def _test_gender_risk(self) -> Dict[str, float]:
+    def test_gender_risk(self) -> Dict:
         """Test risk differences between genders."""
         if 'Gender' not in self.df.columns:
             return {'error': 'Gender data not available'}
             
-        gender_df = self.df[self.df['Gender'].isin(['Male', 'Female'])]
+        valid_genders = ['Male', 'Female']
+        gender_df = self.df[self.df['Gender'].isin(valid_genders)]
         
         if len(gender_df['Gender'].unique()) < 2:
             return {'error': 'Insufficient gender data for comparison'}
             
-        freq_table = pd.crosstab(gender_df['Gender'], gender_df['has_claim'])
-        freq_result = self._run_chi2_test(freq_table)
-        
-        claim_df = gender_df[gender_df['has_claim']]
-        severity_result = self._run_ttest(
-            claim_df['Gender'] == 'Male',
-            claim_df['Gender'] == 'Female',
-            claim_df['TotalClaims']
+        return self.run_ab_test(
+            feature_col='Gender',
+            group_a_value='Male',
+            group_b_value='Female',
+            balance_cols=['VehicleType', 'Province']
         )
-        
-        return {
-            'claim_frequency': freq_result,
-            'claim_severity': severity_result
-        }
 
-    def _test_vehicle_type_risk(self) -> Dict[str, float]:
-        """Test risk differences between vehicle types."""
-        if 'VehicleType' not in self.df.columns:
-            return {'error': 'VehicleType data not available'}
+    def generate_test_report(self, test_results: Dict) -> str:
+        """Generate a report from test results."""
+        report = []
+        
+        if 'error' in test_results:
+            if 'sample_sizes' in test_results:
+                return (
+                    f"Analysis not performed: {test_results['error']}\n"
+                    f"Sample sizes: {test_results['sample_sizes']}"
+                )
+            return f"Analysis not performed: {test_results['error']}"
+        
+        # Header
+        if 'comparison' in test_results:
+            report.append(f"A/B Test Results: {test_results['comparison']}")
+        else:
+            report.append("Risk Comparison Results")
+        
+        report.append("=" * 50)
+        
+        # Sample information
+        if 'sample_sizes' in test_results:
+            report.append(
+                "Sample Sizes:\n" +
+                "\n".join([f"  - {k}: {v:,}" for k, v in test_results['sample_sizes'].items()])
+            )
+        
+        if 'is_balanced' in test_results and not test_results['is_balanced']:
+            report.append("\nWarning: Groups are not balanced - results may be biased")
+        
+        # Test results
+        for metric, test in test_results.get('tests', {}).items():
+            report.append(f"\n{metric.replace('_', ' ').title()}:")
+            report.append(f"  - Test: {test['test']}")
+            report.append(f"  - Statistic: {test['statistic']:.4f}")
+            report.append(f"  - p-value: {test['p_value']:.4f}")
             
-        min_policies = self.test_config['min_policies_per_group']
-        
-        vehicle_stats = self.df.groupby('VehicleType', observed=True).agg(
-            policy_count=('PolicyID', 'count')
-        ).query(f'policy_count >= {min_policies}')
-        
-        if len(vehicle_stats) < 2:
-            return {'error': 'Insufficient vehicle type data for comparison'}
+            # Format comparison values appropriately
+            if 'rate' in test:
+                report.append(
+                    f"  - Group Values: {test.get('group_a_rate', 0):.2%} vs "
+                    f"{test.get('group_b_rate', 0):.2%}"
+                )
+            else:
+                report.append(
+                    f"  - Group Values: {test.get('group_a_mean', 0):.2f} vs "
+                    f"{test.get('group_b_mean', 0):.2f}"
+                )
             
-        filtered_df = self.df[self.df['VehicleType'].isin(vehicle_stats.index)]
-        
-        freq_table = pd.crosstab(filtered_df['VehicleType'], filtered_df['has_claim'])
-        freq_result = self._run_chi2_test(freq_table)
-        
-        severity_result = self._run_anova_test('VehicleType', 'TotalClaims', filtered_df[filtered_df['has_claim']])
-        
-        return {
-            'claim_frequency': freq_result,
-            'claim_severity': severity_result
-        }
-
-    def _run_chi2_test(self, contingency_table: pd.DataFrame) -> Dict:
-        """Run chi-square test of independence."""
-        if contingency_table.size == 0:
-            return {'p_value': np.nan, 'error': 'Empty contingency table'}
-            
-        try:
-            chi2, p, dof, expected = chi2_contingency(contingency_table)
-            return {
-                'p_value': p,
-                'chi2_statistic': chi2,
-                'degrees_of_freedom': dof,
-                'is_significant': p < 0.05
-            }
-        except Exception as e:
-            return {'p_value': np.nan, 'error': str(e)}
-
-    def _run_ttest(self, group1_mask: pd.Series, group2_mask: pd.Series, values: pd.Series) -> Dict:
-        """Run t-test between two groups."""
-        group1 = values[group1_mask]
-        group2 = values[group2_mask]
-        
-        if len(group1) < 2 or len(group2) < 2:
-            return {'p_value': np.nan, 'error': 'Insufficient data points'}
-            
-        try:
-            t_stat, p = ttest_ind(group1, group2, equal_var=False)
-            return {
-                'p_value': p,
-                't_statistic': t_stat,
-                'group1_mean': group1.mean(),
-                'group2_mean': group2.mean(),
-                'is_significant': p < 0.05
-            }
-        except Exception as e:
-            return {'p_value': np.nan, 'error': str(e)}
-
-    def _run_anova_test(self, group_col: str, value_col: str, df: pd.DataFrame = None) -> Dict:
-        """Run one-way ANOVA test."""
-        df = df if df is not None else self.df
-        groups = df[group_col].unique()
-        
-        if len(groups) < 2:
-            return {'p_value': np.nan, 'error': 'Insufficient groups for ANOVA'}
-            
-        try:
-            group_data = [df[df[group_col] == g][value_col] for g in groups]
-            f_stat, p = f_oneway(*group_data)
-            return {
-                'p_value': p,
-                'f_statistic': f_stat,
-                'n_groups': len(groups),
-                'is_significant': p < 0.05
-            }
-        except Exception as e:
-            return {'p_value': np.nan, 'error': str(e)}
-
-    def _filter_recent_data(self, months: int) -> pd.DataFrame:
-        """Filter data to most recent N months."""
-        if self.date_col not in self.df.columns:
-            warnings.warn(f"Date column {self.date_col} not found - skipping time filter")
-            return self.df
-            
-        max_date = self.df[self.date_col].max()
-        cutoff_date = max_date - pd.DateOffset(months=months)
-        return self.df[self.df[self.date_col] >= cutoff_date]
-
-    def _get_metadata(self) -> Dict:
-        """Get metadata about the current analysis."""
-        return {
-            'timestamp': datetime.now().isoformat(),
-            'data_points': len(self.df),
-            'start_date': self.df[self.date_col].min().isoformat() if self.date_col in self.df.columns else None,
-            'end_date': self.df[self.date_col].max().isoformat() if self.date_col in self.df.columns else None,
-            'claim_rate': self.df['has_claim'].mean() if 'has_claim' in self.df.columns else None
-        }
-
-    def generate_report(self, results: Dict) -> str:
-        """Generate a comprehensive business report from test results."""
-        report = [
-            "Insurance Risk Analysis Report",
-            "=" * 50,
-            f"Analysis Date: {results['metadata']['timestamp']}",
-            f"Policies Analyzed: {results['metadata']['data_points']:,}",
-            f"Time Period: {results['metadata']['start_date']} to {results['metadata']['end_date']}",
-            f"Overall Claim Rate: {results['metadata']['claim_rate']:.1%}",
-            "\nKey Findings:"
-        ]
-        
-        # Geographic Risk
-        report.extend(self._format_geographic_results(results['geographic_risk']))
-        
-        # Demographic Risk
-        report.extend(self._format_demographic_results(results['demographic_risk']))
-        
-        # Product Risk
-        report.extend(self._format_product_results(results['product_risk']))
+            report.append(
+                f"  - Conclusion: {'REJECT' if test['reject_null'] else 'FAIL TO REJECT'} null hypothesis"
+            )
         
         # Recommendations
         report.append("\nRecommendations:")
-        report.extend(self._generate_recommendations(results))
+        any_significant = False
+        for metric, test in test_results.get('tests', {}).items():
+            if test['reject_null']:
+                any_significant = True
+                if metric == 'claim_frequency':
+                    report.append(
+                        f"- Significant difference in claim frequency detected. "
+                        f"Consider adjusting underwriting criteria or pricing."
+                    )
+                elif metric == 'claim_severity':
+                    report.append(
+                        f"- Significant difference in claim severity detected. "
+                        f"Review coverage terms or claims handling processes."
+                    )
+                elif metric == 'margin':
+                    report.append(
+                        f"- Significant difference in profitability detected. "
+                        f"Evaluate pricing strategy by segment."
+                    )
+        
+        if not any_significant:
+            report.append("- No significant differences found. Current approach appears appropriate.")
         
         return "\n".join(report)
 
-    def _format_geographic_results(self, results: Dict) -> List[str]:
-        """Format geographic risk results for reporting."""
-        output = ["\n1. Geographic Risk Variations:"]
+    def run_full_analysis(self) -> Dict:
+        """Run all requested hypothesis tests with robust error handling."""
+        results = {}
+        reports = {}
         
-        # Province results
-        prov = results.get('by_province', {})
-        if 'error' in prov:
-            output.append(f"   - Provinces: {prov['error']}")
-        else:
-            output.append("   - By Province:")
-            if 'claim_frequency' in prov:
-                p = prov['claim_frequency']['p_value']
-                output.append(f"      • Claim Frequency: {'SIGNIFICANT' if p < 0.05 else 'No significant'} differences (p={p:.4f})")
-            if 'claim_severity' in prov:
-                p = prov['claim_severity']['p_value']
-                output.append(f"      • Claim Severity: {'SIGNIFICANT' if p < 0.05 else 'No significant'} differences (p={p:.4f})")
+        # Province risk (with error handling)
+        try:
+            province_results = self.test_province_risk()
+            results['province_risk'] = province_results
+            if isinstance(province_results, dict) and 'error' not in province_results:
+                for province, province_test in province_results.items():
+                    reports[f'province_{province}'] = self.generate_test_report(province_test)
+            else:
+                reports['province_risk'] = self.generate_test_report(province_results)
+        except Exception as e:
+            results['province_risk'] = {'error': str(e)}
+            reports['province_risk'] = f"Province analysis failed: {str(e)}"
         
-        # Zip code results
-        zip_risk = results.get('by_zip_code', {})
-        if 'error' in zip_risk:
-            output.append(f"   - Zip Codes: {zip_risk['error']}")
-        else:
-            output.append("   - By Zip Code (Highest vs. Lowest Risk):")
-            if 'claim_frequency' in zip_risk:
-                p = zip_risk['claim_frequency']['p_value']
-                output.append(f"      • Claim Frequency: {'SIGNIFICANT' if p < 0.05 else 'No significant'} differences (p={p:.4f})")
-            if 'claim_severity' in zip_risk:
-                p = zip_risk['claim_severity']['p_value']
-                output.append(f"      • Claim Severity: {'SIGNIFICANT' if p < 0.05 else 'No significant'} differences (p={p:.4f})")
-            if 'high_risk_zips' in zip_risk:
-                output.append(f"      • Highest Risk Zip Codes: {', '.join(map(str, zip_risk['high_risk_zips'][:5]))}...")
+        # Zip code risk
+        try:
+            zip_results = self.test_zip_code_risk()
+            results['zip_code_risk'] = zip_results
+            reports['zip_code_risk'] = self.generate_test_report(zip_results)
+        except Exception as e:
+            results['zip_code_risk'] = {'error': str(e)}
+            reports['zip_code_risk'] = f"Zip code analysis failed: {str(e)}"
         
-        return output
-
-    def _format_demographic_results(self, results: Dict) -> List[str]:
-        """Format demographic risk results for reporting."""
-        output = ["\n2. Demographic Risk Variations:"]
+        # Gender risk
+        try:
+            gender_results = self.test_gender_risk()
+            results['gender_risk'] = gender_results
+            reports['gender_risk'] = self.generate_test_report(gender_results)
+        except Exception as e:
+            results['gender_risk'] = {'error': str(e)}
+            reports['gender_risk'] = f"Gender analysis failed: {str(e)}"
         
-        # Gender results
-        gender = results.get('by_gender', {})
-        if 'error' in gender:
-            output.append(f"   - Gender: {gender['error']}")
-        else:
-            output.append("   - By Gender:")
-            if 'claim_frequency' in gender:
-                p = gender['claim_frequency']['p_value']
-                output.append(f"      • Claim Frequency: {'SIGNIFICANT' if p < 0.05 else 'No significant'} differences (p={p:.4f})")
-            if 'claim_severity' in gender:
-                p = gender['claim_severity']['p_value']
-                output.append(f"      • Claim Severity: {'SIGNIFICANT' if p < 0.05 else 'No significant'} differences (p={p:.4f})")
-        
-        return output
-
-    def _format_product_results(self, results: Dict) -> List[str]:
-        """Format product risk results for reporting."""
-        output = ["\n3. Product Risk Variations:"]
-        
-        # Vehicle type results
-        vehicle = results.get('by_vehicle_type', {})
-        if 'error' in vehicle:
-            output.append(f"   - Vehicle Types: {vehicle['error']}")
-        else:
-            output.append("   - By Vehicle Type:")
-            if 'claim_frequency' in vehicle:
-                p = vehicle['claim_frequency']['p_value']
-                output.append(f"      • Claim Frequency: {'SIGNIFICANT' if p < 0.05 else 'No significant'} differences (p={p:.4f})")
-            if 'claim_severity' in vehicle:
-                p = vehicle['claim_severity']['p_value']
-                output.append(f"      • Claim Severity: {'SIGNIFICANT' if p < 0.05 else 'No significant'} differences (p={p:.4f})")
-        
-        return output
-
-    def _generate_recommendations(self, results: Dict) -> List[str]:
-        """Generate business recommendations based on analysis results."""
-        recommendations = []
-        
-        # Geographic recommendations
-        geo = results.get('geographic_risk', {})
-        prov = geo.get('by_province', {})
-        zip_risk = geo.get('by_zip_code', {})
-        
-        if prov.get('claim_frequency', {}).get('is_significant', False):
-            recommendations.append("- Implement province-specific premium adjustments")
-        if zip_risk.get('claim_frequency', {}).get('is_significant', False):
-            recommendations.append("- Review underwriting guidelines for high-risk zip codes")
-        
-        # Demographic recommendations
-        demo = results.get('demographic_risk', {})
-        gender = demo.get('by_gender', {})
-        
-        if not gender.get('claim_frequency', {}).get('is_significant', True):
-            recommendations.append("- Maintain gender-neutral rating approach")
-        
-        # Product recommendations
-        product = results.get('product_risk', {})
-        vehicle = product.get('by_vehicle_type', {})
-        
-        if vehicle.get('claim_frequency', {}).get('is_significant', False):
-            recommendations.append("- Review vehicle type risk factors and pricing")
-        
-        if not recommendations:
-            recommendations.append("- No significant risk variations detected - current pricing approach appears appropriate")
-        
-        return recommendations
-
-
-# Example Usage
-if __name__ == "__main__":
-    analyzer = InsuranceRiskAnalyzer(file_path="data/data.csv")
-    
-    if not analyzer.df.empty:
-        print(f"Loaded {len(analyzer.df):,} policies")
-        
-        results = analyzer.run_risk_analysis(
-            sampling_method='auto',
-            recent_months=12
-        )
-        
-        report = analyzer.generate_report(results)
-        print("\n" + report)
-        
-        with open("insurance_risk_report.txt", "w") as f:
-            f.write(report)
-    else:
-        print("Failed to load data. Please check the file path.")
+        return {
+            'results': results,
+            'reports': reports
+        }
