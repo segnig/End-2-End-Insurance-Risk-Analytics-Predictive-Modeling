@@ -19,6 +19,7 @@ statsmodels
 
 # A/B testing
 scikit-learn
+imblearn
 
 # reporting & documentation
 jupyterlab

@@ -1,186 +1,180 @@
-# InsuranceRiskAnalyzer Class Documentation
+#  `hypothesis_testing.py` Documentation
 
-## 1. Introduction
-The `InsuranceRiskAnalyzer` class provides a statistical framework for analyzing insurance risk patterns across multiple dimensions including geography, demographics, and product types.
+## Module Overview
 
-## 2. Class Definition
+This module provides a comprehensive framework for conducting **A/B testing** and **hypothesis testing** on insurance-related datasets. It enables statistical analysis of risk factors—such as claim frequency, claim severity, and profit margin—across customer segments defined by features like **Province**, **Postal Code**, and **Gender**.
+
+It includes:
+
+* Data loading and preprocessing
+* Balanced group validation
+* Statistical testing (Chi-square, t-tests)
+* Risk reporting with actionable insights
+
+---
+
+## Class: `InsuranceRiskAnalyzer`
+
+### Purpose:
+
+Encapsulates the logic for analyzing insurance data and performing hypothesis testing between customer groups, aiming to detect statistically significant differences in insurance risk metrics.
+
+### Constructor
+
 ```python
-class InsuranceRiskAnalyzer:
-    def __init__(self, file_path: str = "../data/data.csv", date_col: str = "TransactionMonth"):
-        """
-        Initialize the risk analyzer with data source information.
-        
-        Parameters:
-            file_path (str): Path to CSV file containing policy data
-            date_col (str): Name of datetime column for temporal filtering
-        """
+InsuranceRiskAnalyzer(file_path: str = "../data/data.csv", date_col: str = "TransactionMonth")
 ```
 
-## 3. Data Requirements
+#### Parameters:
 
-### 3.1 Required Columns
-| Column Name      | Data Type | Description                          |
-|------------------|-----------|--------------------------------------|
-| PolicyID         | Any       | Unique policy identifier             |
-| TotalPremium     | Numeric   | Total premium amount                 |
-| TotalClaims      | Numeric   | Total claims amount                  |
+* `file_path` *(str)*: Path to the CSV file containing the insurance dataset.
+* `date_col` *(str)*: Name of the date column in the dataset (converted to datetime).
 
-### 3.2 Optional Columns
-| Column Name      | Analysis Dimension |
-|------------------|--------------------|
-| Province         | Geographic         |
-| PostalCode       | Geographic         |
-| Gender           | Demographic        |
-| VehicleType      | Product            |
+---
 
-## 4. Core Methods
+## Methods
 
-### 4.1 Data Loading
+### 1. `_load_and_preprocess_data() -> pd.DataFrame`
+
+Loads and prepares the dataset by:
+
+* Parsing dates
+* Creating derived columns: `has_claim`, `margin`, `claim_frequency`
+* Cleaning categorical variables
+
+### 2. `_check_group_balance(group_a, group_b, balance_cols) -> bool`
+
+Validates whether the control and test groups are statistically balanced on specified covariates using:
+
+* Chi-square test for categorical
+* t-test for numerical
+
+### 3. `run_ab_test(feature_col, group_a_value, group_b_value=None, balance_cols=None) -> Dict`
+
+Performs hypothesis testing between two groups on:
+
+* Claim Frequency (Chi-square)
+* Claim Severity (t-test on claims only)
+* Margin (t-test)
+
+#### Parameters:
+
+* `feature_col`: Column name for grouping.
+* `group_a_value`: Value defining group A.
+* `group_b_value`: Value defining group B (optional).
+* `balance_cols`: Columns to verify statistical balance.
+
+#### Returns:
+
+A dictionary with test results including statistics, p-values, group means/rates, and conclusions.
+
+---
+
+## Built-in Test Routines
+
+### 4. `test_province_risk() -> Dict`
+
+Runs A/B tests for each **Province** vs the rest. Uses `'Gender'` and `'VehicleType'` as balance checks.
+
+### 5. `test_zip_code_risk(top_n: int = 5) -> Dict`
+
+Compares the top `n` highest and lowest risk zip codes based on **claim frequency**. Ensures samples meet minimum policy threshold.
+
+### 6. `test_gender_risk() -> Dict`
+
+Compares insurance risk between `'Male'` and `'Female'` genders, using `'Province'` and `'VehicleType'` for balance checking.
+
+---
+
+## Report Generation
+
+### 7. `generate_test_report(test_results: Dict) -> str`
+
+Converts the results of a hypothesis test into a human-readable report that includes:
+
+* Sample sizes
+* Test statistics
+* Significance decisions
+* Recommendations for insurance strategy
+
+---
+
+## Master Analysis
+
+### 8. `run_full_analysis() -> Dict`
+
+Executes all major tests:
+
+* Province-level
+* Zip code-level
+* Gender-based risk comparison
+
+Handles errors gracefully and compiles:
+
+* Raw results
+* Text reports per segment
+
+---
+
+## Metrics Analyzed
+
+| Metric            | Test Used          | Description                              |
+| ----------------- | ------------------ | ---------------------------------------- |
+| `claim_frequency` | Chi-square         | % of customers who filed a claim         |
+| `claim_severity`  | Independent t-test | Avg. amount claimed (only for claimants) |
+| `margin`          | Independent t-test | Profit per customer = Premium - Claims   |
+
+---
+
+## ⚠️ Configuration Parameters
+
+These thresholds are set in the constructor:
+
+| Attribute               | Value | Purpose                                  |
+| ----------------------- | ----- | ---------------------------------------- |
+| `alpha`                 | 0.05  | Significance level for statistical tests |
+| `min_sample_size`       | 30    | Warn if sample size is smaller           |
+| `min_policies_for_test` | 10    | Skip test if fewer policies available    |
+
+---
+
+## 🧪 Example Usage
+
 ```python
-def _load_and_preprocess_data(self) -> pd.DataFrame:
-    """
-    Load and preprocess insurance data.
-    Returns:
-        pd.DataFrame: Processed policy data
-    """
-```
+analyzer = InsuranceRiskAnalyzer(file_path="insurance_data.csv")
 
-### 4.2 Sampling Methods
-```python
-def get_sample(self, method: str = 'auto', **kwargs) -> pd.DataFrame:
-    """
-    Get data sample using specified method.
-    
-    Parameters:
-        method (str): 'random', 'stratified', 'systematic', 'cluster', or 'auto'
-        **kwargs: Method-specific parameters
-    
-    Returns:
-        pd.DataFrame: Sampled data
-    """
-```
-
-### 4.3 Risk Analysis
-```python
-def run_risk_analysis(self, sampling_method: str = None, 
-                     recent_months: int = None) -> Dict:
-    """
-    Execute complete risk analysis.
-    
-    Parameters:
-        sampling_method (str): Sampling technique
-        recent_months (int): Months of history to include
-    
-    Returns:
-        Dict: Analysis results with structure:
-        {
-            'geographic_risk': {...},
-            'demographic_risk': {...},
-            'product_risk': {...},
-            'metadata': {...}
-        }
-    """
-```
-
-### 4.4 Reporting
-```python
-def generate_report(self, results: Dict) -> str:
-    """
-    Generate formatted business report.
-    
-    Parameters:
-        results (Dict): Analysis results from run_risk_analysis()
-    
-    Returns:
-        str: Formatted report text
-    """
-```
-
-## 5. Statistical Tests
-
-### 5.1 Test Specifications
-| Test Type        | Application               | Metric Tested     | Significance Level |
-|------------------|---------------------------|-------------------|--------------------|
-| Chi-square       | Claim frequency           | Categorical       | α = 0.05           |
-| T-test           | Claim severity (2 groups) | Continuous        | α = 0.05           |
-| ANOVA            | Claim severity (>2 groups)| Continuous        | α = 0.05           |
-
-### 5.2 Minimum Sample Sizes
-- Per group: ≥30 policies
-- For zip code analysis: ≥5 valid postal codes
-
-## 6. Usage Example
-
-### 6.1 Basic Implementation
-```python
-# Initialize analyzer
-analyzer = InsuranceRiskAnalyzer("policy_data.csv")
-
-# Run analysis with automatic sampling on recent year
-results = analyzer.run_risk_analysis(
-    sampling_method='auto',
-    recent_months=12
+# A/B test for claim severity and margin between two vehicle types
+ab_results = analyzer.run_ab_test(
+    feature_col="VehicleType",
+    group_a_value="SUV",
+    group_b_value="Sedan",
+    balance_cols=["Gender", "Province"]
 )
 
-# Generate report
-report = analyzer.generate_report(results)
+print(analyzer.generate_test_report(ab_results))
+
+# Run full analysis across key demographics and regions
+full_output = analyzer.run_full_analysis()
+
+# Print one of the reports
+print(full_output['reports']['gender_risk'])
 ```
 
-### 6.2 Advanced Usage
-```python
-# Custom stratified sampling
-sample = analyzer.get_sample(
-    method='stratified',
-    stratify_col='Province',
-    sample_frac=0.2
-)
+---
 
-# Targeted vehicle type analysis
-vehicle_results = analyzer._test_vehicle_type_risk()
-```
+## 🛠 Dependencies
 
-## 7. Output Interpretation
+* `pandas`, `numpy` – data processing
+* `scipy.stats` – statistical tests (`ttest_ind`, `chi2_contingency`)
+* `datetime` – date parsing
+* `warnings` – for runtime alerts
 
-### 7.1 Report Sections
-1. **Header**: Analysis metadata
-2. **Geographic Findings**: Province and postal code results
-3. **Demographic Findings**: Gender-based analysis
-4. **Product Findings**: Vehicle type analysis
-5. **Recommendations**: Actionable business insights
-
-### 7.2 Key Metrics
-- **Claim Frequency**: Proportion of policies with claims
-- **Claim Severity**: Average claim amount when claims occur
-- **Loss Ratio**: TotalClaims/TotalPremium
-
-## 8. Error Handling
-
-### 8.1 Common Exceptions
-| Error Type               | Cause                          | Resolution                     |
-|--------------------------|--------------------------------|--------------------------------|
-| MissingColumnError       | Required column not in data    | Verify input data structure    |
-| InsufficientDataError    | Not enough samples for test    | Increase sample size           |
-| InvalidSamplingMethod    | Unsupported sampling type      | Use valid method name          |
-
-## 9. Performance Notes
-
-### 9.1 Computational Complexity
-| Operation               | Time Complexity | Space Complexity |
-|-------------------------|-----------------|------------------|
-| Data loading            | O(n)            | O(n)             |
-| Random sampling         | O(1)            | O(k)             |
-| Stratified sampling     | O(n)            | O(k)             |
-| Statistical tests       | O(n)            | O(1)             |
-
-### 9.2 Recommended Hardware
-- Minimum: 8GB RAM for datasets <1M records
-- Recommended: 16GB+ RAM for datasets >1M records
-
-## 10. Version History
-
-| Version | Date       | Changes                     |
-|---------|------------|-----------------------------|
-| 1.0     | 2025-11-15 | Initial release             |
+---
 
 
-This documentation follows standard technical documentation practices with clear section organization, method specifications, and practical usage examples while avoiding unnecessary marketing language.
+## Strengths
+
+* **Modular**: Easily extendable to other grouping features.
+* **Balanced Group Verification**: Reduces bias.
+* **Practical Metrics**: Relevant to insurance profitability.
+* **Robust Reporting**: Actionable insights and safety warnings.

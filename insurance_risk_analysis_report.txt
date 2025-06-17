@@ -1,0 +1,366 @@
+
+Province Gauteng Report:
+A/B Test Results: Gauteng vs Others
+==================================================
+Sample Sizes:
+  - group_a: 393,865
+  - group_b: 606,233
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 75.2696
+  - p-value: 0.0000
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: -1.3423
+  - p-value: 0.1796
+  - Group Values: 22243.88 vs 24201.77
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: -3.5715
+  - p-value: 0.0004
+  - Group Values: -13.56 vs 3.93
+  - Conclusion: REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim frequency detected. Consider adjusting underwriting criteria or pricing.
+- Significant difference in profitability detected. Evaluate pricing strategy by segment.
+
+Province Kwazulu-Natal Report:
+A/B Test Results: KwaZulu-Natal vs Others
+==================================================
+Sample Sizes:
+  - group_a: 169,781
+  - group_b: 830,317
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 0.2159
+  - p-value: 0.6422
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: 3.7064
+  - p-value: 0.0002
+  - Group Values: 29609.49 vs 21945.69
+  - Conclusion: REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: -0.5922
+  - p-value: 0.5537
+  - Group Values: -6.43 vs -2.24
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim severity detected. Review coverage terms or claims handling processes.
+
+Province Mpumalanga Report:
+A/B Test Results: Mpumalanga vs Others
+==================================================
+Sample Sizes:
+  - group_a: 52,718
+  - group_b: 947,380
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 2.4555
+  - p-value: 0.1171
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: -2.8081
+  - p-value: 0.0057
+  - Group Values: 15979.55 vs 23624.37
+  - Conclusion: REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: 2.5012
+  - p-value: 0.0124
+  - Group Values: 15.02 vs -3.96
+  - Conclusion: REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim severity detected. Review coverage terms or claims handling processes.
+- Significant difference in profitability detected. Evaluate pricing strategy by segment.
+
+Province Eastern Cape Report:
+A/B Test Results: Eastern Cape vs Others
+==================================================
+Sample Sizes:
+  - group_a: 30,336
+  - group_b: 969,762
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 14.1934
+  - p-value: 0.0002
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: 0.5364
+  - p-value: 0.5940
+  - Group Values: 27128.53 vs 23202.99
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: 2.1755
+  - p-value: 0.0296
+  - Group Values: 25.83 vs -3.86
+  - Conclusion: REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim frequency detected. Consider adjusting underwriting criteria or pricing.
+- Significant difference in profitability detected. Evaluate pricing strategy by segment.
+
+Province Western Cape Report:
+A/B Test Results: Western Cape vs Others
+==================================================
+Sample Sizes:
+  - group_a: 170,796
+  - group_b: 829,302
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 28.3407
+  - p-value: 0.0000
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: 2.1218
+  - p-value: 0.0344
+  - Group Values: 28095.85 vs 22535.46
+  - Conclusion: REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: -0.0830
+  - p-value: 0.9338
+  - Group Values: -3.41 vs -2.86
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim frequency detected. Consider adjusting underwriting criteria or pricing.
+- Significant difference in claim severity detected. Review coverage terms or claims handling processes.
+
+Province Limpopo Report:
+A/B Test Results: Limpopo vs Others
+==================================================
+Sample Sizes:
+  - group_a: 24,836
+  - group_b: 975,262
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 0.0448
+  - p-value: 0.8324
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: -2.4008
+  - p-value: 0.0189
+  - Group Values: 15171.29 vs 23472.89
+  - Conclusion: REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: 2.3156
+  - p-value: 0.0206
+  - Group Values: 20.97 vs -3.57
+  - Conclusion: REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim severity detected. Review coverage terms or claims handling processes.
+- Significant difference in profitability detected. Evaluate pricing strategy by segment.
+
+Province North West Report:
+A/B Test Results: North West vs Others
+==================================================
+Sample Sizes:
+  - group_a: 143,287
+  - group_b: 856,811
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 7.3097
+  - p-value: 0.0069
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: -3.7086
+  - p-value: 0.0002
+  - Group Values: 16963.47 vs 24176.28
+  - Conclusion: REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: 2.9475
+  - p-value: 0.0032
+  - Group Values: 10.96 vs -5.28
+  - Conclusion: REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim frequency detected. Consider adjusting underwriting criteria or pricing.
+- Significant difference in claim severity detected. Review coverage terms or claims handling processes.
+- Significant difference in profitability detected. Evaluate pricing strategy by segment.
+
+Province Free State Report:
+A/B Test Results: Free State vs Others
+==================================================
+Sample Sizes:
+  - group_a: 8,099
+  - group_b: 991,999
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 5.4950
+  - p-value: 0.0191
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: 0.6181
+  - p-value: 0.5503
+  - Group Values: 32265.66 vs 23237.77
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: 1.0241
+  - p-value: 0.3058
+  - Group Values: 20.55 vs -3.15
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim frequency detected. Consider adjusting underwriting criteria or pricing.
+
+Province Northern Cape Report:
+A/B Test Results: Northern Cape vs Others
+==================================================
+Sample Sizes:
+  - group_a: 6,380
+  - group_b: 993,718
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 4.8927
+  - p-value: 0.0270
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: -3.3927
+  - p-value: 0.0101
+  - Group Values: 11186.31 vs 23308.17
+  - Conclusion: REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: 5.6021
+  - p-value: 0.0000
+  - Group Values: 35.59 vs -3.20
+  - Conclusion: REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim frequency detected. Consider adjusting underwriting criteria or pricing.
+- Significant difference in claim severity detected. Review coverage terms or claims handling processes.
+- Significant difference in profitability detected. Evaluate pricing strategy by segment.
+
+Zip Code Risk Report:
+Risk Comparison Results
+==================================================
+Sample Sizes:
+  - high_risk: 378
+  - low_risk: 1,541
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 44.2523
+  - p-value: 0.0000
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: -2.2301
+  - p-value: 0.0263
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: REJECT null hypothesis
+
+Recommendations:
+- Significant difference in claim frequency detected. Consider adjusting underwriting criteria or pricing.
+- Significant difference in profitability detected. Evaluate pricing strategy by segment.
+
+Gender Risk Report:
+A/B Test Results: Male vs Female
+==================================================
+Sample Sizes:
+  - group_a: 42,817
+  - group_b: 6,755
+
+Warning: Groups are not balanced - results may be biased
+
+Claim Frequency:
+  - Test: chi2
+  - Statistic: 0.0037
+  - p-value: 0.9515
+  - Group Values: 0.00 vs 0.00
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Claim Severity:
+  - Test: t-test
+  - Statistic: -0.5790
+  - p-value: 0.5680
+  - Group Values: 14858.55 vs 17874.72
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Margin:
+  - Test: t-test
+  - Statistic: -0.2514
+  - p-value: 0.8015
+  - Group Values: 4.28 vs 8.03
+  - Conclusion: FAIL TO REJECT null hypothesis
+
+Recommendations:
+- No significant differences found. Current approach appears appropriate.
