@@ -16,6 +16,7 @@ dvc
 # Statistical modeling & hypothesis testing
 scipy
 statsmodels
+xgboost
 
 # A/B testing
 scikit-learn
